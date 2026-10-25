@@ -85,15 +85,22 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 - [x] Stock `boot.img` & DTB/DTBO extracted from official Indian fastboot ROM on external SSD.
 - [x] Step 2: Shim & boot.img builder configured in `shim/build-rosemary.sh` and verified (built `shim/out/shim-rosemary.img` with matching MTK boot header).
 - [x] Step 3: Apple Device Tree profile added in `tools/mkadt.py` (`--rosemary`) with 8 CPUs, GICv3, 13 MHz timer, and UFS 2.2 nodes.
-- [x] Diagnostic shim flashed to `boot_a` on physical device (`secret`, slot `a`).
-- [x] AVB verification disabled on slot `a`: flashed `vbmeta_a`, `vbmeta_system_a`, and `vbmeta_vendor_a` with `--disable-verity --disable-verification`.
-- [x] Root cause of black screen identified:
-  1. Bootloader marked `slot-unbootable:a: yes` and fell back to `current-slot: b` because previous build had `RAMDISK=/dev/null` (`ramdisk_size == 0`, `ramdisk_addr == 0`), which MTK LK rejected.
-  2. Fixed: Repackaged `shim-rosemary.img` with stock 20MB ramdisk and matching MTK header offsets (`ramdisk_addr: 0x47C80000`).
-  3. Reset slot state: `current-slot: a`, `slot-unbootable:a: no`, `slot-retry-count:a: 5`.
-  4. Flashed with `-S 4M` chunking to prevent USB bulk transfer stalls (`usb_write failed`).
-  5. Scoped `shim_main` to Milestone 1 diagnostic console (RED background, WHITE border, CPU sysregs, DTB check) without running untested UFS/MMU clock code.
-- [ ] Next action: Observe device screen on boot.
+- [x] Milestone 1 verified on physical screen:
+  - LK enters at EL1 (`boot_el = 1`, `now = 1`).
+  - Boot CPU MIDR: `0x411FD050` (Cortex-A55 r1p0).
+  - Boot CPU MPIDR: `0x81000000`.
+  - Timer CNTFRQ: exactly 13 MHz (`0xC65D40`).
+  - MMFR0: `0x01011122` (TGran16 = 0: 16K granule not supported on A55; 4K and 64K supported).
+  - Framebuffer: `0x7C010000`, 1080x2400, stride `0x1100` (4352 bytes).
+  - PSCI: v1.1 (`0x00010001`), SYSTEM_RESET and CPU_ON supported.
+  - DTB patched by LK: `MT6785V/CD`, DRAM `0x40000000` size `0x180000000` (6 GB).
+  - UFS: controller at `0x11270000` (size `0x2300`), vcc `0x5B`.
+- [x] Milestone 2 deployed to `boot_a`:
+  - Shows Milestone 1 banner for 3 seconds on RED screen.
+  - Transitions to BLUE screen: GICv3 Distributor & Redistributor report.
+  - Brings up secondary cores CPU 1..7 via `PSCI_CPU_ON` (`0x81000100` .. `0x81000700`).
+- [x] Dispatched XNU kernel build on GitHub Actions (run ID 40216133056, `rosemary` branch).
+- [ ] Next action: Verify Milestone 2 SMP report on device screen (CPU 1-7 online).
 
 
 

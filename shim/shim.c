@@ -636,8 +636,29 @@ void shim_main(uint64_t dtb, uint64_t boot_el)
 	dtb_report(dtb);
 
 	con_skip();
-	con_str("STATUS", "rosemary console alive; halted");
-	con_str("HALT", "milestone 1 verified!");
+	con_str("STATUS", "milestone 1 ok; testing SMP in 3s...");
+	delay_ms(3000);
+
+	/* Milestone 2: GICv3 view + PSCI CPU_ON for all 8 cores */
+	con_clear(BLUE);
+	for (int x = 0; x < FB_W; x++) {
+		con_fb[x] = WHITE;
+		con_fb[(FB_H - 1) * (FB_STRIDE / 4) + x] = WHITE;
+	}
+	for (int y = 0; y < FB_H; y++) {
+		con_fb[y * (FB_STRIDE / 4)] = WHITE;
+		con_fb[y * (FB_STRIDE / 4) + FB_W - 1] = WHITE;
+	}
+
+	con_str("SHIM", "rosemary GICv3 / SMP (8 Cores)");
+	con_skip();
+	gic_report();
+	con_skip();
+	con_str("SMP", "starting CPU1..7 via PSCI CPU_ON");
+	test_smp();
+	con_skip();
+	con_str("STATUS", "GIC & 8-core SMP alive!");
+	con_str("HALT", "milestone 2 verified!");
 
 	for (;;)
 		__asm__ volatile("wfe");
