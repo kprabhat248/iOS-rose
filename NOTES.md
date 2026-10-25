@@ -83,8 +83,10 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 - [x] Branch `rosemary` created from `fleur` base.
 - [x] Branch pushed to remote `origin/rosemary`.
 - [x] Stock `boot.img` & DTB/DTBO extracted from official Indian fastboot ROM on external SSD.
-- [x] Hardware facts verified: GICv3 (`0x0C000000`/`0x0C040000`), 13 MHz timer, 8-core CPU cluster, UFS 2.2 (`0x11270000`), I2C 0 Goodix GT9885 / FocalTech FTS touch (IRQ GPIO 1, RST GPIO 2).
-- [ ] Next action: Configure `shim/build-rosemary.sh` and extend `tools/mkadt.py` with `--rosemary` hardware profile.
+- [x] Step 2: Shim & boot.img builder configured in `shim/build-rosemary.sh` and verified (built `shim/out/shim-rosemary.img` with matching MTK boot header).
+- [x] Step 3: Apple Device Tree profile added in `tools/mkadt.py` (`--rosemary`) with 8 CPUs, GICv3, 13 MHz timer, and UFS 2.2 nodes.
+- [ ] Next action: Device test of diagnostic shim (`fastboot flash boot_a shim/out/shim-rosemary.img`) to verify early framebuffer console & SMP bringup.
+
 
 ---
 

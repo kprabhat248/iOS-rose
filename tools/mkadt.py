@@ -53,6 +53,20 @@ FLEUR_UFS, FLEUR_UFS_SIZE = 0x11270000, 0x2300
 FLEUR_TIMEBASE = 13000000
 FLEUR_VTIMER_INTID = 27                                # DT PPI 11 + 16
 
+# Rosemary (Redmi Note 10S, MT6785).  RAM: LK exposes 0x40000000 + 6/8 GiB.
+# Every MTK carve-out is below 0xC0000000 except the last 4 KiB page, so hand
+# XNU 0xC0000000..0x1BFFFC000 (4 GiB - 16 KiB) and leave the low 3 GiB to
+# LK/ATF/modem/ADSP/SCP/SSPM and the framebuffer.
+ROSEMARY_PHYS_BASE = 0xC0000000
+ROSEMARY_MEM_SIZE = 0xFFFFC000
+ROSEMARY_GICD, ROSEMARY_GICD_SIZE = 0x0C000000, 0x40000
+ROSEMARY_GICR, ROSEMARY_GICR_SIZE = 0x0C040000, 0x200000     # 8 redistributors x 0x40000
+ROSEMARY_FB, ROSEMARY_FB_SIZE = 0x7C010000, 0x1DF0000
+ROSEMARY_FB_W, ROSEMARY_FB_H, ROSEMARY_FB_STRIDE = 1080, 2400, 1088 * 4
+ROSEMARY_UFS, ROSEMARY_UFS_SIZE = 0x11270000, 0x2300
+ROSEMARY_TIMEBASE = 13000000
+ROSEMARY_VTIMER_INTID = 27
+
 BOOT_MANIFEST_HASH = hashlib.sha384(b'sweet boot manifest').digest()
 
 # The iOS userland is the iPhone X (iPhone10,3 / D22AP) IPSW. MobileGestalt
@@ -88,11 +102,20 @@ def node(name, props=(), children=()):
     return n
 
 
-def build(seed=None, qemu=False, highmem=False, fleur=False):
+def build(seed=None, qemu=False, highmem=False, fleur=False, rosemary=False):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ
-    (tools/qemu-sweet.py).  fleur=True: MT6781 addresses, RAM above the MTK
+    (tools/qemu-sweet.py).  fleur=True / rosemary=True: MTK addresses, RAM above the MTK
     carve-outs, 1080x2400 framebuffer and 13 MHz timer."""
-    if fleur:
+    if rosemary:
+        phys_base, mem_size = ROSEMARY_PHYS_BASE, ROSEMARY_MEM_SIZE
+        gicd, gicr, timebase = ROSEMARY_GICD, ROSEMARY_GICR, ROSEMARY_TIMEBASE
+        gicd_size, gicr_size = ROSEMARY_GICD_SIZE, ROSEMARY_GICR_SIZE
+        vtimer_intid = ROSEMARY_VTIMER_INTID
+        fb, fb_size = ROSEMARY_FB, ROSEMARY_FB_SIZE
+        fb_w, fb_h, fb_stride = ROSEMARY_FB_W, ROSEMARY_FB_H, ROSEMARY_FB_STRIDE
+        ufs, ufs_size = ROSEMARY_UFS, ROSEMARY_UFS_SIZE
+        cpu_clock = (2050000000, 2000000000)  # 2x A75, 6x A55
+    elif fleur:
         phys_base, mem_size = FLEUR_PHYS_BASE, FLEUR_MEM_SIZE
         gicd, gicr, timebase = FLEUR_GICD, FLEUR_GICR, FLEUR_TIMEBASE
         gicd_size, gicr_size = FLEUR_GICD_SIZE, FLEUR_GICR_SIZE
@@ -265,7 +288,9 @@ def build(seed=None, qemu=False, highmem=False, fleur=False):
     # (iPhone10,3). 'xiaomi,sweet' stays for SweetPlatformExpert matching;
     # fleur adds its real SoC string for documentation only.
     compatible = [cstr('D22AP'), cstr('iPhone10,3'), cstr('xiaomi,sweet'), cstr('qcom,sm7150')]
-    if fleur:
+    if rosemary:
+        compatible.append(cstr('mediatek,MT6785'))
+    elif fleur:
         compatible.append(cstr('mediatek,MT6781'))
     compatible.append(cstr('AppleARM'))
     return node('device-tree', [
@@ -282,9 +307,10 @@ def build(seed=None, qemu=False, highmem=False, fleur=False):
 
 if __name__ == '__main__':
     root = build(qemu='--qemu' in sys.argv, highmem='--highmem' in sys.argv,
-                 fleur='--fleur' in sys.argv)
+                 fleur='--fleur' in sys.argv, rosemary='--rosemary' in sys.argv)
     blob = adt.serialize(root)
     open(sys.argv[1], 'wb').write(blob)
     if '--dump' in sys.argv:
         adt.dump(adt.parse(blob)[0])
     print(f'{sys.argv[1]}: {len(blob)} bytes', file=sys.stderr)
+
