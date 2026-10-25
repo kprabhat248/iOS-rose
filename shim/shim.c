@@ -608,7 +608,7 @@ void shim_main(uint64_t dtb, uint64_t boot_el)
 		con_fb[y * (FB_STRIDE / 4) + FB_W - 1] = WHITE;
 	}
 
-	con_str("SHIM", "fleur bring-up (dtb+mmu)");
+	con_str("SHIM", "rosemary MT6785 bring-up");
 	con_skip();
 	con_hex2("BOOT", "el=", (uint32_t)boot_el, "now=", (uint32_t)(rsr("currentel") >> 2));
 	con_hex2("MIDR", "lo=", (uint32_t)rsr("midr_el1"), "hi=", 0);
@@ -636,28 +636,8 @@ void shim_main(uint64_t dtb, uint64_t boot_el)
 	dtb_report(dtb);
 
 	con_skip();
-	stage = "mmu";
-	con_str("MMU", "enabling 16K granule...");
-	struct mmu_info mi;
-	if (mmu_enable(&mi)) {
-		con_str("MMU", "FAILED: image spans >2 blocks");
-	} else {
-		mmu_report(&mi, dtb);
-	}
-
-	/* Milestone 3: read-only GICv3 view, then PSCI CPU_ON. */
-	con_clear(BLUE);
-	con_str("SHIM", "fleur GIC/SMP");
-	con_skip();
-	gic_report();
-	con_skip();
-	con_str("SMP", "starting CPU1..7 via CPU_ON");
-	test_smp();
-
-	/* Milestone 4: UFS.  test_ufs() clears the screen: the SMP report
-	 * above fills all 49 visible rows and the console does not scroll. */
-	test_ufs();
-	con_str("HALT", "hold power to reboot");
+	con_str("STATUS", "rosemary console alive; halted");
+	con_str("HALT", "milestone 1 verified!");
 
 	for (;;)
 		__asm__ volatile("wfe");

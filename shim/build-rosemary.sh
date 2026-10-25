@@ -7,21 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-MUSI=${MUSI:-/home/tom/Documents/musi/Mu-Silicium}
-DEFAULT_RAMDISK="/Volumes/files/rosemary/boot_unpacked/ramdisk"
 DEFAULT_DTB="/Volumes/files/rosemary/boot_unpacked/dtb"
 
+DEFAULT_RAMDISK="/Volumes/files/rosemary/boot_unpacked/ramdisk"
 RAMDISK=${RAMDISK:-$DEFAULT_RAMDISK}
-if [ ! -f "$RAMDISK" ]; then
-	RAMDISK="$MUSI/Resources/ramdisk"
-fi
-
-# Optional argument: an XNU payload (tools/mkpayload.py) to put in the ramdisk
-# slot. The shim finds it via /chosen/linux,initrd-start and boots it; with no
-# argument the stock Android ramdisk is used and the diagnostic report runs.
 if [ $# -ge 1 ]; then
 	RAMDISK=$1
 fi
+
 
 DTB=${DTB:-$DEFAULT_DTB}
 if [ ! -f "$DTB" ]; then

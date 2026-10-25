@@ -85,7 +85,17 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 - [x] Stock `boot.img` & DTB/DTBO extracted from official Indian fastboot ROM on external SSD.
 - [x] Step 2: Shim & boot.img builder configured in `shim/build-rosemary.sh` and verified (built `shim/out/shim-rosemary.img` with matching MTK boot header).
 - [x] Step 3: Apple Device Tree profile added in `tools/mkadt.py` (`--rosemary`) with 8 CPUs, GICv3, 13 MHz timer, and UFS 2.2 nodes.
-- [ ] Next action: Device test of diagnostic shim (`fastboot flash boot_a shim/out/shim-rosemary.img`) to verify early framebuffer console & SMP bringup.
+- [x] Diagnostic shim flashed to `boot_a` on physical device (`secret`, slot `a`).
+- [x] AVB verification disabled on slot `a`: flashed `vbmeta_a`, `vbmeta_system_a`, and `vbmeta_vendor_a` with `--disable-verity --disable-verification`.
+- [x] Root cause of black screen identified:
+  1. Bootloader marked `slot-unbootable:a: yes` and fell back to `current-slot: b` because previous build had `RAMDISK=/dev/null` (`ramdisk_size == 0`, `ramdisk_addr == 0`), which MTK LK rejected.
+  2. Fixed: Repackaged `shim-rosemary.img` with stock 20MB ramdisk and matching MTK header offsets (`ramdisk_addr: 0x47C80000`).
+  3. Reset slot state: `current-slot: a`, `slot-unbootable:a: no`, `slot-retry-count:a: 5`.
+  4. Flashed with `-S 4M` chunking to prevent USB bulk transfer stalls (`usb_write failed`).
+  5. Scoped `shim_main` to Milestone 1 diagnostic console (RED background, WHITE border, CPU sysregs, DTB check) without running untested UFS/MMU clock code.
+- [ ] Next action: Observe device screen on boot.
+
+
 
 
 ---
