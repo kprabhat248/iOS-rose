@@ -100,21 +100,18 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - All 8 CPU redistributors active (`count=00000008`, size `0x00200000`).
   - Secondary cores CPU1 through CPU7 booted via `PSCI_CPU_ON` with `ret=0` (`PSCI_SUCCESS`).
   - Cores reported online in mailbox: CPU1 `0x81000100`, CPU2 `0x81000200`, CPU3 `0x81000300`, CPU4 `0x81000400`, CPU5 `0x81000500`, CPU6 `0x81000600`, CPU7 `0x81000700`.
-- [x] Step 5: XNU kernel built in CI (GitHub Actions run ID `40216133056`):
-  - Downloaded `xnu-kernel` artifact (`kernel.development.sweet`, 17.2 MB).
-  - Built ADT profile for rosemary with `tools/mkadt.py` (`xnu/out/rosemary.adt`, 10,104 bytes).
-  - Fixed screen stride to exact 4320 bytes (`1080 * 4`) and cleared framebuffer before jump.
-  - Successfully verified early XNU boot on hardware: 8/8 CPUs online, memory cache, sandbox, HFS driver, and network stack initialized. Reached "Waiting for root device" (`Waiting on <dict> ... <key>Content</key><string>Apple_HFS</string></dict>`).
-  - Repackaged payload with `rd=ufsroot0 ufslun=2` to direct root matching to UFS userdata partition.
-  - Rebuilt `shim/out/shim-rosemary.img` (16.7 MB).
+- [x] Step 5: XNU kernel boot & display geometry:
+  - Kernel artifact: `kernel.development.sweet` (17.2 MB, commit `49867b8`).
+  - Stride resolution: Reverted stride to exact 4,320 bytes (`1080 * 4 = 4320`). Changing stride to 4,352 bytes (1088 px) caused display shearing into two split columns ("two side double") because Rosemary's AMOLED panel scanline pitch is strictly 1080 pixels (4,320 bytes) without 64-byte padding.
+  - No XNU kernel rebuild required for stride: `sweet-fbcon` (serial/panic console) and `AppleCLCD` obtain their stride dynamically at runtime from the Apple Device Tree (`rosemary.adt`) and `boot_args.Video.v_rowBytes`.
+  - Storage fix: Set `ufslun=2` in cmdline. MediaTek UFS stores the GPT and `userdata` on LUN 2 (LUN 0 and 1 are 4 MB boot LUNs without a GPT, which caused panic `IOFindBSDRoot: SWEET UFS root ufsroot0 unavailable: 6`).
+  - Shim rebuilt: `shim/out/shim-rosemary.img` (16.7 MB) with 4,320 stride, 31.3 MB full framebuffer zeroing, and UFS probe.
 - [x] Step 6: iOS 16.7.16 Root Image (25 GB):
   - Extracted OS, SystemOS, and AppOS DMGs from `iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw` into `/Volumes/files/rosemary/rootfs/`.
   - Created native macOS root builder `tools/build_rosemary_root.py` and sparse image converter `tools/img2simg.py` configured for 25 GB target on external SSD.
   - Successfully built 25 GB case-sensitive journaled HFS+ image with cryptexes, dyld cache, and sweet tweaks (`rosemary-ios16-root.simg`, 10.85 GiB sparse).
   - Flashed `userdata` partition via fastboot in 2,794 chunks (373s, OKAY).
-  - Flashed `boot_a` with `rd=ufsroot0 ufslun=2`.
-  - Slot `a` active, rebooted device into iOS 16 root.
-- [ ] Next action: Observe device screen for UFS root mount (`ufsroot0: ... userdata`), launchd startup, and SpringBoard.
+- [ ] Next action: Reboot phone into fastboot (Power + Vol-), flash `shim/out/shim-rosemary.img` to `boot_a`, verify single-column clean console and UFS root mount on LUN 2.
 
 
 
