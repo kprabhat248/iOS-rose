@@ -4,8 +4,8 @@
 #define FB_BASE		0x7c010000UL	/* fleur: mblock-18-framebuffer */
 #define FB_W		1080
 #define FB_H		2400
-/* Rosemary's display panel stride is exactly 1080 px (4320 bytes), no padding. */
-#define FB_STRIDE	(1080 * 4)	/* a8r8g8b8 */
+/* MediaTek DISPSYS requires 64-byte AXI DMA alignment: 1088 px * 4 = 4352 bytes (0x1100). */
+#define FB_STRIDE	(1088 * 4)	/* a8r8g8b8 */
 
 #define RED	0xffff0000U
 #define BLUE	0xff0000a0U
