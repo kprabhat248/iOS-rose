@@ -95,12 +95,18 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - PSCI: v1.1 (`0x00010001`), SYSTEM_RESET and CPU_ON supported.
   - DTB patched by LK: `MT6785V/CD`, DRAM `0x40000000` size `0x180000000` (6 GB).
   - UFS: controller at `0x11270000` (size `0x2300`), vcc `0x5B`.
-- [x] Milestone 2 deployed to `boot_a`:
-  - Shows Milestone 1 banner for 3 seconds on RED screen.
-  - Transitions to BLUE screen: GICv3 Distributor & Redistributor report.
-  - Brings up secondary cores CPU 1..7 via `PSCI_CPU_ON` (`0x81000100` .. `0x81000700`).
-- [x] Dispatched XNU kernel build on GitHub Actions (run ID 40216133056, `rosemary` branch).
-- [ ] Next action: Verify Milestone 2 SMP report on device screen (CPU 1-7 online).
+- [x] Milestone 2 verified on physical screen:
+  - GICv3 Distributor at `0x0C000000` (IIDR `0x0201543B` = ARM GIC-500) and Redistributor at `0x0C040000`.
+  - All 8 CPU redistributors active (`count=00000008`, size `0x00200000`).
+  - Secondary cores CPU1 through CPU7 booted via `PSCI_CPU_ON` with `ret=0` (`PSCI_SUCCESS`).
+  - Cores reported online in mailbox: CPU1 `0x81000100`, CPU2 `0x81000200`, CPU3 `0x81000300`, CPU4 `0x81000400`, CPU5 `0x81000500`, CPU6 `0x81000600`, CPU7 `0x81000700`.
+- [x] Step 5: XNU kernel built in CI (GitHub Actions run ID `40216133056`):
+  - Downloaded `xnu-kernel` artifact (`kernel.development.sweet`, 17.2 MB).
+  - Built ADT profile for rosemary with `tools/mkadt.py` (`xnu/out/rosemary.adt`, 10,104 bytes).
+  - Packaged bootable payload with `tools/mkpayload.py` (`xnu/out/rosemary.payload`, 16.6 MB) with cmdline `-v debug=0x14e serial=3 cpus=8 ufslun=2`.
+  - Wrapped into `shim/out/shim-rosemary.img` (16.7 MB) matching MTK v2 boot header.
+  - Flashed to `boot_a` via fastboot (`-S 4M`) and rebooted device.
+- [ ] Next action: Observe XNU kernel early boot log on device screen.
 
 
 
