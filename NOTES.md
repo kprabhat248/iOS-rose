@@ -9,33 +9,34 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 
 ---
 
-## Hardware Overview & Comparison
+## Hardware Overview & Verified Facts (from Stock DTB & DTBO Extraction)
 
-| Component | Redmi Note 11S ("fleur") | Redmi Note 10S ("rosemary") | Bring-up Notes |
-|-----------|--------------------------|-----------------------------|----------------|
-| **SoC** | MediaTek Helio G96 (MT6781) | MediaTek Helio G95 (MT6785) | MTK 64-bit ARMv8.2-A |
-| **CPU Cluster** | 2× Cortex-A76 + 6× Cortex-A55 | 2× Cortex-A76 + 6× Cortex-A55 | 8 cores, PSCI 1.1 CPU_ON via SMC |
-| **RAM** | 6 GB / 8 GB LPDDR4X | 6 GB / 8 GB LPDDR4X | DRAM base `0x40000000` |
-| **Display** | 1080×2400 AMOLED (90Hz) | 1080×2400 AMOLED (60Hz) | LK framebuffer carve-out |
-| **GIC** | GICv3 (GICD `0x0C000000`, GICR `0x0C040000`) | GICv3 (Check DTB: GICD `0x0C000000`, GICR `0x0C040000`) | Verify PPIs & INTIDs in stock DT |
-| **Timer** | 13 MHz (`0xC65D40`) | 13 MHz (standard MTK ARM timer) | Verify CNTFRQ_EL0 |
-| **Storage** | UFS 2.2 (`0x11270000`) | UFS 2.2 (MTK UFSHCI) | Target iOS root in `userdata` |
-| **PMIC** | MT6358 / MT6366 | MT6359 | Power/Vol keys via PMIC/GPIO |
-| **Touch** | FocalTech FTS (I2C) | FocalTech / Goodix / Novatek | Check Android DT for I2C bus & IRQ |
-| **Bootloader** | MediaTek Little Kernel (LK) | MediaTek Little Kernel (LK) | LK fastboot / `boot_b` flashing |
+| Component | Verified Specification on Rosemary (MT6785) | Details & Offsets |
+|-----------|---------------------------------------------|-------------------|
+| **SoC** | MediaTek Helio G95 (MT6785) | MTK 64-bit ARMv8.2-A |
+| **CPU Cluster** | 8 Cores: 6× Cortex-A55 + 2× Cortex-A75 | MPIDR: 0x000, 0x100, 0x200, 0x300, 0x400, 0x500 (A55), 0x600, 0x700 (A75) |
+| **RAM** | 6 GB / 8 GB LPDDR4X | Base `0x40000000`, size `0x3E605000` (LK patches to full RAM) |
+| **Display** | 1080×2400 AMOLED (60Hz) | LK mblock FB carve-out |
+| **GICv3** | GICD `0x0C000000` (size `0x40000`), GICR `0x0C040000` (size `0x200000`) | GICv3 matching MT6781 |
+| **Timer** | 13 MHz (`0xC65D40`) | PPIs 13/14/11/10 → INTIDs 29/30/27/26 (VTIMER = 27, PTIMER = 30) |
+| **PSCI** | PSCI 1.0, `method = "smc"` | SYSTEM_RESET + CPU_ON supported |
+| **Storage** | UFS 2.2 at `0x11270000` (size `0x2300`) | MTK UFSHCI |
+| **Touch** | Goodix GT9885 (`0x5d`) / FocalTech FTS (`0x38`) on I2C 0 (`0x11007000`) | Reset GPIO 2, IRQ GPIO 1 (on pio) |
+| **Buttons** | MTK Keypad at `0x10010000` (IRQ 75) + PMIC Power Key | Power, Vol+ / Vol- |
+| **Boot Header** | Android boot v2 | `kernel_addr: 0x40080000`, `ramdisk_addr: 0x47C80000`, `tags_addr: 0x4BC80000`, `page_size: 2048` |
 
 ---
 
 ## Step-by-Step Bring-up Roadmap for Rosemary
 
 ### Step 1: Device Inspection & Backup
-1. **Stock Partition Backup**:
-   - Backup `persist`, `boot`, `dtbo`, `vbmeta`, `modemst1`, `modemst2`, `fsg`, `fsc`.
-   - Never commit device backups or calibration data to git.
-2. **Device Tree Extraction**:
-   - Unpack stock `boot.img` using `tools/unpack_bootv2.py` or extract `dtb` from device.
-   - Decompile `dtb` to `.dts` (`dtc -I dtb -O dts -o rosemary.dts stock_dtb`).
-   - Extract exact hardware offsets: GIC distributor/redistributor, timer frequency, framebuffer base/size/stride, UFS HCI base, I2C touch controller and GPIO pins.
+1. **Stock Partition Backup & Extraction** (Completed):
+   - Fastboot ROM (`V14.0.11.0.TKLINXM`) downloaded to `/Volumes/files/rosemary/rosemary_in_fastboot.tgz`.
+   - Extracted `boot.img`, `dtbo.img`, `vbmeta.img`.
+   - Unpacked `boot.img` with `tools/unpack_bootv2.py`.
+   - Decompiled DTB to `rosemary.dts` and DTBO overlay to `rosemary_dtbo.dts`.
+   - All hardware addresses, CPU clusters, and I2C touch pins verified.
+
 
 ### Step 2: Shim & Early Framebuffer Console
 1. Create `shim/build-rosemary.sh` using rosemary's stock DTB and kernel base offsets.
@@ -81,7 +82,9 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 ## Current Status (2026-10-25)
 - [x] Branch `rosemary` created from `fleur` base.
 - [x] Branch pushed to remote `origin/rosemary`.
-- [ ] Next action: Provide stock `boot.img` or DTB dump from Redmi Note 10S to extract hardware nodes and configure `shim/build-rosemary.sh` and `mkadt.py`.
+- [x] Stock `boot.img` & DTB/DTBO extracted from official Indian fastboot ROM on external SSD.
+- [x] Hardware facts verified: GICv3 (`0x0C000000`/`0x0C040000`), 13 MHz timer, 8-core CPU cluster, UFS 2.2 (`0x11270000`), I2C 0 Goodix GT9885 / FocalTech FTS touch (IRQ GPIO 1, RST GPIO 2).
+- [ ] Next action: Configure `shim/build-rosemary.sh` and extend `tools/mkadt.py` with `--rosemary` hardware profile.
 
 ---
 
