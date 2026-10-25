@@ -138,7 +138,7 @@ static void dc_ivac(void *p, unsigned n)
  * handoff.  Make sure they are on anyway: idempotent, and a read of a gated
  * block wedges the interconnect.
  */
-static void ufs_clocks(void)
+void ufs_clocks(void)
 {
 	uint32_t b2 = rd32a(INFRA2_STA), b3 = rd32a(INFRA3_STA);
 

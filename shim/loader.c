@@ -11,6 +11,7 @@
 #include "console.h"
 #include "fdt.h"
 #include "loader.h"
+#include "ufs.h"
 
 #define BOOT_LINE_LENGTH	608
 #define PAGE_16K		0x4000UL
@@ -174,16 +175,11 @@ const char *loader_boot(uintptr_t dtb)
 	con_hex("JUMP", entry_pa);
 	con_str("XNU", "jumping (fbcon clears screen)");
 
-	/*
-	 * With the console off (tools/clean-console.py renamed "sweet-fbcon") there
-	 * is no fbcon_init() to erase this report, and the panel would keep showing
-	 * it until the first GUI swap.  Clear here so xnu comes up on a black
-	 * screen; a payload that still has the node keeps its report on screen.
-	 */
-	if (!adt_has_node(rd_start + p->adt_off, p->adt_size, "sweet-fbcon")) {
-		con_str("XNU", "no fbcon node: clearing the panel");
-		con_clear(BLACK);
-	}
+	/* Make sure MTK UFS clock gates are enabled before kernel boot */
+	ufs_clocks();
+
+	/* Clear the entire 31.3 MB framebuffer carveout so XNU starts with a clean black canvas. */
+	zero64(FB_BASE, 0x1DF0000UL);
 
 	/* Everything was written with the MMU and caches off; drop any stale I-cache lines too. */
 	__asm__ volatile("dsb sy; ic iallu; dsb sy; isb" ::: "memory");

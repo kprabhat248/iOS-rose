@@ -103,10 +103,18 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 - [x] Step 5: XNU kernel built in CI (GitHub Actions run ID `40216133056`):
   - Downloaded `xnu-kernel` artifact (`kernel.development.sweet`, 17.2 MB).
   - Built ADT profile for rosemary with `tools/mkadt.py` (`xnu/out/rosemary.adt`, 10,104 bytes).
-  - Packaged bootable payload with `tools/mkpayload.py` (`xnu/out/rosemary.payload`, 16.6 MB) with cmdline `-v debug=0x14e serial=3 cpus=8 ufslun=2`.
-  - Wrapped into `shim/out/shim-rosemary.img` (16.7 MB) matching MTK v2 boot header.
-  - Flashed to `boot_a` via fastboot (`-S 4M`) and rebooted device.
-- [ ] Next action: Observe XNU kernel early boot log on device screen.
+  - Fixed screen stride to exact 4320 bytes (`1080 * 4`) and cleared framebuffer before jump.
+  - Successfully verified early XNU boot on hardware: 8/8 CPUs online, memory cache, sandbox, HFS driver, and network stack initialized. Reached "Waiting for root device" (`Waiting on <dict> ... <key>Content</key><string>Apple_HFS</string></dict>`).
+  - Repackaged payload with `rd=ufsroot0 ufslun=2` to direct root matching to UFS userdata partition.
+  - Rebuilt `shim/out/shim-rosemary.img` (16.7 MB).
+- [x] Step 6: iOS 16.7.16 Root Image (25 GB):
+  - Extracted OS, SystemOS, and AppOS DMGs from `iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw` into `/Volumes/files/rosemary/rootfs/`.
+  - Created native macOS root builder `tools/build_rosemary_root.py` and sparse image converter `tools/img2simg.py` configured for 25 GB target on external SSD.
+  - Successfully built 25 GB case-sensitive journaled HFS+ image with cryptexes, dyld cache, and sweet tweaks (`rosemary-ios16-root.simg`, 10.85 GiB sparse).
+  - Flashed `userdata` partition via fastboot in 2,794 chunks (373s, OKAY).
+  - Flashed `boot_a` with `rd=ufsroot0 ufslun=2`.
+  - Slot `a` active, rebooted device into iOS 16 root.
+- [ ] Next action: Observe device screen for UFS root mount (`ufsroot0: ... userdata`), launchd startup, and SpringBoard.
 
 
 
