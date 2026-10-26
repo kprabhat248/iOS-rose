@@ -153,10 +153,19 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
     - Image sha256: `6a35f8427d207cd220d85dd8cf6ed042a64f4dde17bc060f335d417d89c61bac`.
     - `fastboot flash boot_a -S 4M shim/out/shim-rosemary.img` -> 4/4 sparse chunks `OKAY` (0.520 s).
     - `fastboot reboot` issued successfully.
+- [x] Step 5g: Fresh kernel build & clean console package flashed (2026-10-26):
+  - GitHub Actions run `40306177352` on ref `rosemary` (commit `fdd9b55`) completed in 7m20s.
+  - Downloaded `kernel.development.sweet`: sha256 `f79f5e90de8e41fb5a82e26dc42dbfcd1a1c385e27f2246ab6fc4726bc474a75`.
+  - Disassembly of `start_first_cpu` confirmed `#0x10e0` (4320 bytes) at `fffffe000748d114`.
+  - Repacked payload with new kernel: `xnu/out/rosemary.payload`.
+  - Applied `tools/clean-console.py`: renamed `sweet-fbcon` → `sweet-fboff`.
+  - Rebuilt flashable image: `shim/out/shim-rosemary.img` (sha256 `c18fe561448bad2c62e90d63f714b908af99cdca04f3ec0ee0d186895f766ddd`).
+  - Unpack verification: payload ADT node `sweet-fboff`, `stride = 4320`, DTB 155 KB intact.
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.571s) and issued `fastboot reboot`.
 - [ ] Next action:
-  - Observe screen: verify no more diagonal streaks, text smears, or split double columns appear on the panel.
-  - Pull persistent log from `userdata` via recovery/mtkclient using `tools/sweet-log-pull.sh` or mtkclient to read the clean console output.
-  - Investigate `launchd` crash reason (userspace exception) and resolve why PID 1 died.
+  - Verify screen: clean black startup without any diagonal streaks or text smears.
+  - Pull persistent log from `userdata` via recovery/mtkclient using `tools/sweet-log-pull.sh`.
+  - Symbolicate and resolve why `launchd` crashed in userspace to progress toward SpringBoard.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)

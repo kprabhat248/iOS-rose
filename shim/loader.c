@@ -173,7 +173,10 @@ const char *loader_boot(uintptr_t dtb)
 
 	uintptr_t entry_pa = p->entry_va + pa_of_va_base;
 	con_hex("JUMP", entry_pa);
-	con_str("XNU", "jumping (fbcon clears screen)");
+	if (adt_has_node(rd_start + p->adt_off, p->adt_size, "sweet-fbcon"))
+		con_str("XNU", "jumping (fbcon enabled)");
+	else
+		con_str("XNU", "jumping (clean console: panel cleared)");
 
 	/* Make sure MTK UFS clock gates are enabled before kernel boot */
 	ufs_clocks();
