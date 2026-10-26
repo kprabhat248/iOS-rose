@@ -28,7 +28,7 @@ fi
 MKBOOTIMG=${MKBOOTIMG:-$ROOT_DIR/tools/mkbootimg.py}
 
 
-CFLAGS="-O2 -ffreestanding -nostdlib -fno-pic -fno-jump-tables -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra"
+CFLAGS="-O2 -ffreestanding -nostdlib -fno-pic -fno-jump-tables -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra -DFB_STRIDE=4352"
 
 if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
 	CC="aarch64-linux-gnu-gcc"

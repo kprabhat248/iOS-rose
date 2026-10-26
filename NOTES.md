@@ -162,8 +162,19 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Rebuilt flashable image: `shim/out/shim-rosemary.img` (sha256 `c18fe561448bad2c62e90d63f714b908af99cdca04f3ec0ee0d186895f766ddd`).
   - Unpack verification: payload ADT node `sweet-fboff`, `stride = 4320`, DTB 155 KB intact.
   - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.571s) and issued `fastboot reboot`.
+- [x] Step 5h: Fleur-matched 4352-stride clean console image flashed (2026-10-26):
+  - Hardware observation confirmed: 4,352 bytes (`1088 * 4`) is the physical panel scan pitch; 4,320 caused diagonal smearing across all lines.
+  - Re-aligned setup to Fleur's verified configuration:
+    - Stride: 4,352 bytes (`1088 * 4`) across `tools/mkadt.py`, `shim/build-rosemary.sh`, and `shim/loader.c`.
+    - Kernel: 4,352 kernel from run `40273678907` (`kernel.development.sweet`, sha256 `ab6c8d7477344118d9f867e1f17a0626dcb549941f1297ca2b0ef498272876fc`).
+    - Font scale: `ba->Video.v_depth = 32 | (1 << 16)` (2x font, matching Fleur commit `9aa1b4f`).
+    - Clean console: `tools/clean-console.py` renamed `sweet-fbcon` → `sweet-fboff` in ADT to prevent XNU text console from corrupting the screen.
+    - Framebuffer wiped: `zero64(FB_BASE, 0x1DF0000UL)` in `shim/loader.c` clears the full 31.3 MB before jumping.
+  - Flashable image generated: `shim/out/shim-rosemary.img` (sha256 `717da4be9b4f1314329e95eb3b5d7a20f282c206977d7c0e696856f034004fd1`).
+  - Unpack verification: payload ADT node `sweet-fboff`, `stride = 4352`, stock DTB 155 KB intact.
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.504 s) and issued `fastboot reboot`.
 - [ ] Next action:
-  - Verify screen: clean black startup without any diagonal streaks or text smears.
+  - Check screen: panel starts clean black without diagonal smears or split text columns.
   - Pull persistent log from `userdata` via recovery/mtkclient using `tools/sweet-log-pull.sh`.
   - Symbolicate and resolve why `launchd` crashed in userspace to progress toward SpringBoard.
 
