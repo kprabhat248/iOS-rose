@@ -27,5 +27,6 @@ dev=$($ADB shell 'for d in /dev/block/by-name/userdata /dev/block/bootdevice/by-
 bytes=$($ADB shell blockdev --getsize64 "$dev" | tr -d '\r')
 skip=$((bytes / 4096 - 1025))
 $ADB exec-out "dd if=$dev bs=4096 skip=$skip count=1025 2>/dev/null" > "$out.bin"
-echo "$dev: $bytes bytes, read blocks $skip.. ($(stat -c %s "$out.bin") bytes)" >&2
+sz=$(stat -f %z "$out.bin" 2>/dev/null || stat -c %s "$out.bin" 2>/dev/null || wc -c < "$out.bin")
+echo "$dev: $bytes bytes, read blocks $skip.. ($sz bytes)" >&2
 python3 "$(dirname "$0")/sweet-log.py" "$out.bin" "$out"
