@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,100 @@
+@@ -820,6 +820,99 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
