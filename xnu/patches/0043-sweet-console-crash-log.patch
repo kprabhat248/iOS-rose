@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,71 @@
+@@ -820,6 +820,100 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
@@ -51,6 +51,35 @@
 +	printf("CRASH %s pc 0x%llx lr 0x%llx sp 0x%llx fp 0x%llx far 0x%llx\n", name,
 +	    get_saved_state_pc(ss), get_saved_state_lr(ss), get_saved_state_sp(ss), fp,
 +	    (uint64_t)saved_state64(ss)->far);
++
++	/*
++	 * Is the pc real code or a wild jump? Dump the bytes it points at and
++	 * the mapping that contains it (file-backed mappings have a file
++	 * offset; anonymous ones print off 0).
++	 */
++	{
++		unsigned char ins[16];
++		vm_map_t map = current_map();
++		vm_map_entry_t entry;
++
++		if (!copyin((user_addr_t)get_saved_state_pc(ss), ins, sizeof(ins))) {
++			printf("CRASH %s code@pc %016llx %016llx\n", name,
++			    *(uint64_t *)ins, *(uint64_t *)(ins + 8));
++		} else {
++			printf("CRASH %s code@pc unreadable\n", name);
++		}
++		vm_map_lock_read(map);
++		if (vm_map_lookup_entry(map, (vm_map_offset_t)get_saved_state_pc(ss), &entry) &&
++		    entry != vm_map_to_entry(map)) {
++			printf("CRASH %s pc map 0x%llx-0x%llx prot %d/%d tag %d off 0x%llx\n",
++			    name, (uint64_t)entry->vme_start, (uint64_t)entry->vme_end,
++			    entry->protection, entry->max_protection, (int)VME_ALIAS(entry),
++			    (uint64_t)entry->offset);
++		} else {
++			printf("CRASH %s pc map: none\n", name);
++		}
++		vm_map_unlock_read(map);
++	}
 +
 +	char line[200];
 +	int n = snprintf(line, sizeof(line), "CRASH %s bt", name);
