@@ -173,10 +173,26 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Flashable image generated: `shim/out/shim-rosemary.img` (sha256 `717da4be9b4f1314329e95eb3b5d7a20f282c206977d7c0e696856f034004fd1`).
   - Unpack verification: payload ADT node `sweet-fboff`, `stride = 4352`, stock DTB 155 KB intact.
   - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.504 s) and issued `fastboot reboot`.
+- [x] Step 5i: Green strip removed, TOPRGU WDT reinforced, CI build dispatched (2026-10-26):
+  - Log extraction breakthrough: Pulled 45,167 bytes log from `userdata` (`/dev/block/sdc61`) via recovery ADB using `tools/sweet-log-pull.sh`.
+  - Proven facts from log:
+    - Root mounted rw from `userdata` LUN 2 (`iOSRoot`).
+    - `launchd` started and completed `libignition` stage 7 (`goodbye: ignition sequence complete`).
+    - 30+ background system daemons executed (`tccd`, `cloudd`, `mDNSResponder`, `homed`, `coreauthd`, etc.).
+    - `SpringBoard` executed! Zero kernel panics or crashes in userspace boot!
+  - Root cause of green strip: `sweet_early_mark()` in `0010` was drawing 32 green scanlines (`0xff00ff00u`) and text lines at early boot, which remained frozen on screen when `sweet-fbcon` was disabled.
+  - Fix applied:
+    - Disabled Stage 0 band drawing in `start.s`.
+    - Made `sweet_early_mark` and `sweet_early_putc` immediate returns in `patch 0010` (no green pixels or text ever drawn).
+    - Reduced `patch 0012` to a clean no-op (no TTBR0 alias, no `map_final`).
+    - Reinforced TOPRGU WDT disable before jumping in `shim/loader.c` (`0x10007000 = 0x22000000`, `0x10007008 = 0x1971`).
+    - Fixed macOS BSD `stat` compatibility in `tools/sweet-log-pull.sh`.
+    - Committed (`52550b0` and `9e9af4b`), pushed to `origin/rosemary`, and dispatched GitHub Actions run `40316740723`.
 - [ ] Next action:
-  - Check screen: panel starts clean black without diagonal smears or split text columns.
-  - Pull persistent log from `userdata` via recovery/mtkclient using `tools/sweet-log-pull.sh`.
-  - Symbolicate and resolve why `launchd` crashed in userspace to progress toward SpringBoard.
+  - Download clean kernel artifact from CI run `40316740723`.
+  - Repack payload with `mkpayload.py` and `clean-console.py`.
+  - Build `shim/out/shim-rosemary.img`.
+  - Flash `boot_a` and reboot. Panel will start pure black with zero green strip.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
