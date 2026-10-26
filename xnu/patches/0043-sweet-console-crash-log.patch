@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,127 @@
+@@ -820,6 +820,148 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
@@ -104,6 +104,27 @@
 +				printf("CRASH %s cfg2 %016llx %016llx %016llx %016llx\n", name,
 +				    *(uint64_t *)(cfg + 32), *(uint64_t *)(cfg + 40),
 +				    *(uint64_t *)(cfg + 48), *(uint64_t *)(cfg + 56));
++			}
++			{
++				/* page-aligned window around the config, for diffing
++				 * against the dyld file content */
++				unsigned char pg[128];
++				user_addr_t at = (user_addr_t)(r[19] & ~0x3full) - 0x40;
++				if (!copyin(at, pg, sizeof(pg))) {
++					printf("CRASH %s pg@%llx %016llx %016llx\n", name,
++					    (uint64_t)at, *(uint64_t *)pg, *(uint64_t *)(pg + 8));
++					printf("CRASH %s pg %016llx %016llx %016llx %016llx\n", name,
++					    *(uint64_t *)(pg + 16), *(uint64_t *)(pg + 24),
++					    *(uint64_t *)(pg + 32), *(uint64_t *)(pg + 40));
++					printf("CRASH %s pg %016llx %016llx %016llx %016llx\n", name,
++					    *(uint64_t *)(pg + 48), *(uint64_t *)(pg + 56),
++					    *(uint64_t *)(pg + 64), *(uint64_t *)(pg + 72));
++					printf("CRASH %s pg %016llx %016llx %016llx %016llx\n", name,
++					    *(uint64_t *)(pg + 80), *(uint64_t *)(pg + 88),
++					    *(uint64_t *)(pg + 96), *(uint64_t *)(pg + 104));
++					printf("CRASH %s pg %016llx %016llx\n", name,
++					    *(uint64_t *)(pg + 112), *(uint64_t *)(pg + 120));
++				}
 +			}
 +		}
 +	}
