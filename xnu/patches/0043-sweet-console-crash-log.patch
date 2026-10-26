@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,60 @@
+@@ -820,6 +820,71 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
@@ -33,6 +33,17 @@
 +	}
 +	printf("CRASH %s[%d] sig %d code 0x%llx sub 0x%llx slide 0x%llx mh 0x%llx\n",
 +	    name, pid, sig, code, subcode, slide, mh);
++
++	/*
++	 * The persistent-log thread only flushes once a second; a process that
++	 * dies in its first second would never reach the userdata ring. Push
++	 * everything out now so recovery can read the reason for the kill.
++	 */
++	{
++		extern void sweet_log_flush(void);
++		sweet_log_flush();
++	}
++
 +	if (ss == NULL || !is_saved_state64(ss)) {
 +		return;
 +	}
