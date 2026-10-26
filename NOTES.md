@@ -242,8 +242,18 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
     1. `memorystatus_kill_proc()` refuses to kill `initproc` (logs `refusing to jetsam initproc (cause %u)`) — pressure kills pick another victim instead of panicking the kernel.
     2. `proc_handle_critical_exit()` prints the sweet crash report (pc/lr/far/reason) and flushes the ring synchronously before the initproc panic, so any future launchd death is fully captured in `userdata`.
   - Observation: `launchd` still logs `Could not opt into 50 MB Jetsam high watermark: 22: Invalid argument` (benign, appears in successful boots too).
+- [x] Step 5q: first fully captured launchd crash (2026-10-26):
+  - The `proc_handle_critical_exit` hook works: the panicked boot's ring (`total 8443, flush #2`) contains the complete crash report, flushed synchronously before the panic:
+    - `pid 1 exited -- exit reason namespace 2 subcode 0xb` (jetsam `VMCOMPRESSOR_THRASHING`)
+    - `CRASH launchd[1] sig 11 code 0x20000000b` = SIGSEGV / KERN_INVALID_ADDRESS
+    - `pc 0x104add2ac lr 0x104add294 sp 0x16b672fb0 fp 0x16b673010 far 0x52800150510ce1ae` (slide 0, mh 0x10478c000 → pc = launchd+0x3512ac)
+    - backtrace all inside launchd: `0x104adbda4 0x104a93b98 0x104a93fd8 0x104a92dec 0x104a90260`
+    - died right after `libignition: ignition blob not available`, before the `parameters` print — the good boot (ring, run `40358983719` kernel) passed that exact point.
+  - Interpretation: launchd dereferenced a garbage pointer (far is unmapped; looks like packed instruction words). Combined with the earlier jetsam kills for compressor-thrashing (0xb) / FC-thrashing (6) / sustained-pressure (0xe=14) and `VM Swap Subsystem is ON`, the working theory is **swap/compressor I/O corruption or thrash on the UFS-backed root** — random per boot. Not yet proven.
+  - No `-no_swap` boot-arg exists in xnu-8796; `vm_compressor` boot-arg exists (mode 2 = no compressor) if the compressor needs to be disabled next.
+  - Rebooted into slot `a` again (the race sometimes passes; jetsam gate now protects pid 1 regardless).
 - [ ] Next action:
-  - When run `40364932290` finishes: download kernel, repack `rosemary-verbose.payload` (same full cmdline), rebuild shim, flash `boot_a`, reboot; expect either SpringBoard or (if another kill path appears) a fully captured log.
+  - Watch the boot. If it panics at launchd again, pull the log (crash report is now always captured) and try `vm_compressor=2` in the cmdline (no compressor/swap) as the next experiment.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
