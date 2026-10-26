@@ -115,12 +115,44 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Fix applied: `tools/mkadt.py` `ROSEMARY_FB_STRIDE = 1088 * 4`; patches `0010` (`EARLY_STRIDE` + the two `start.s` asm constants) and `0012` (`EARLY_STRIDE`) → 4352; `shim/build-rosemary.sh` passes `-DFB_STRIDE=4352`. `shim/console.h` is shared with fleur, so `FB_STRIDE` became `#ifndef`-guarded keeping the 4320 default fleur was verified with.
   - `xnu/out/rosemary.adt` rebuilt: `sweet-fbcon` `stride = 0x1100`.
   - Observation: `fleur` (Redmi Note 11S) and `rosemary` (Redmi Note 10S) are both AMOLED; the differences are 90 Hz vs 60 Hz and the physical size/PPI, which is why the panel scan pitch must be taken from LK rather than copied between profiles.
-- [ ] Next action: rebuild the XNU kernel in CI (required — `sweet_early` stride is compiled in), then repack `xnu/out/rosemary.payload` and `shim/out/shim-rosemary.img`, flash `boot_a`, and confirm a single clean console column plus UFS root mount on LUN 2 (`userdata`).
-
-
-
-
----
+- [x] Step 5c: Kernel rebuilt with the 4352 stride (2026-10-26):
+  - Commit `8460763` "rosemary: set every framebuffer writer to the panel's 4352-byte scan pitch" pushed to `origin/rosemary` (`d9a984d..8460763`); it carries the mkadt/patch 0010/patch 0012/build-rosemary.sh edits plus the pre-existing `NOTES.md` and `shim/shim.c` changes.
+  - GitHub Actions Run ID `40273678907` on ref `rosemary` — build **completed success** (all steps ✓). The previous kernel in `xnu/out/` was verified to be the 4320 build (sha256 `866f819d5565828ea6ce379ad65bd60e514e0ed96edd2269b7278202c1a2faa5`, matching `xnu/out/SHA256SUMS` and the Step 5 note), so a rebuild was genuinely required rather than optional.
+  - Observation: `shim/console.h` and `tools/mkadt.py`'s default (line 33, QEMU/fleur) profile were deliberately left at 4320 — only `build-rosemary.sh` overrides `FB_STRIDE`, so fleur behaviour is preserved. Both patch files still parse (`git apply --stat`).
+  - Local pre-flight: `shim.c` + `console.c` compile with *and* without `-DFB_STRIDE=4352` (only the pre-existing `unused function 'mmu_report'` warning); a probe translation unit asserts `FB_STRIDE` resolves to 4352 with `-D` and 4320 by default.
+  - Payload header recovered from the existing `xnu/out/rosemary.payload` for the repack: `nsegs=10`, `adt_off=0xfd4f70`, `adt_size=10104`, cmdline `-v debug=0x14e serial=3 cpus=8 sweetfb_native=1 rd=ufsroot0 ufslun=2`; the ADT has **no** `RAMDisk` entry, so `mkpayload.py --ramdisk` must *not* be used.
+  - Observation: the only two framebuffer writers are `fbcon` (patch 0003, reads the ADT stride) and `sweet_early` (patches 0010/0012, `EARLY_STRIDE`). Patches 0043/0047/0067 write no framebuffer; `AppleCLCD` (patch 0046) takes `fRowBytes` from `boot_args.Video.v_rowBytes`, which the shim sets from `FB_STRIDE`.
+- [x] Step 5d: All artifacts rebuilt and cross-verified at 4352 (2026-10-26):
+  - Kernel artifact downloaded from run `40273678907`; sha256 `ab6c8d7477344118d9f867e1f17a0626dcb549941f1297ca2b0ef498272876fc` (matches the artifact's own `SHA256SUMS`; differs from the 4320 build's `866f819d...`, so the rebuild genuinely took).
+  - Positive confirmation the 4352 constants compiled in: disassembly of the new kernel shows the `start_first_cpu` band block materialising `x0 = 0x7c9e4000` (= `0x7c010000 + 2368*4352`) with `x4 = #0x1100`, `w1 = #-1`, `x2 = #32`, `x3 = #64`. A lone `mov w9, #0x10e0` elsewhere is a literal in `_vm_packing_pointer_invalid`'s panic path, **not** a framebuffer writer — verified by context.
+  - Payload repacked: `tools/mkpayload.py kernel.development.sweet rosemary.adt rosemary.payload --cmdline "-v debug=0x14e serial=3 cpus=8 sweetfb_native=1 rd=ufsroot0 ufslun=2"`; sha256 `2c3482ab...`. `--ramdisk` correctly *not* used (`ramdisk: None`; the ADT has no `RAMDisk` node). Header re-verified from the packed file: `nsegs=10`, cmdline byte-identical, and the **embedded** ADT's `sweet-fbcon` reports `stride = 0x1100`.
+  - Shim rebuilt: `shim/build-rosemary.sh "$PWD/xnu/out/rosemary.payload"` (an **absolute** path is required — the script `cd`s into `shim/`, so a repo-relative path fails with `can't open 'xnu/out/rosemary.payload'`). External SSD was re-mounted, so the real stock DTB at `/Volumes/files/rosemary/boot_unpacked/dtb` was used, not the `$MUSI` fallback.
+  - Shim stride verified in its own disassembly: 8 sites carry `#0x1100`, **zero** carry `#0x10e0`.
+  - Boot image verified end-to-end by unpacking it (`tools/unpack_bootv2.py`): layout is *inverted* from the naive reading — boot.img "kernel" = the gzipped shim (11619 B → 229376 B, sha-matches `shim/out/Image`), boot.img "ramdisk" = the SWEETXNU payload (16611056 B, byte-identical to `xnu/out/rosemary.payload`). The ADT extracted back out of the flashable image reports `stride = 0x1100`, and the 159169 B stock DTB is intact.
+  - `shim/out/shim-rosemary.img` sha256 `3085da8a9022ba51c64bca66c57fb472f884d46b0ec6b4cd8dde8276a006affe` (previous 4320 image: `5d375760eac615bc3cc36440709fcd5f178749edfb4a0d73eaa388674c1b3be3`, kept at `/tmp/shim-rosemary.img.bak`).
+  - Pre-flash state: `fastboot devices` empty — the phone is not in fastboot mode yet.
+- [x] Step 5e: Flashed and rebooted (2026-10-26):
+  - Pre-flash slot state recorded: `current-slot: a`, `slot-successful:a: yes`, `slot-unbootable:a: no`, `slot-retry-count:a: 7`, `slot-successful:b: no`, `slot-unbootable:b: no`. Slot `a` was healthy, so any later boot failure is attributable to this image.
+  - `fastboot flash boot_a -S 4M shim/out/shim-rosemary.img` → 4 sparse chunks, all `OKAY` (total 0.531 s). The leading `Invalid sparse file format at header magic` is benign: it is fastboot falling back to on-the-fly sparsing of a *raw* (non-sparse) image, not an error — the same message appeared on the previously working flash.
+  - Read-back verification **not possible**: this device's fastboot does not support the `fetch` command (`Unable to get max-fetch-size`). Verification therefore rests on the 4/4 `OKAY` writes plus the offline end-to-end unpack check in Step 5d.
+  - `fastboot reboot` issued.
+- [x] Step 5f: Screen photo analysis & Fleur clean console adoption (2026-10-26):
+  - Observation from physical screen photo: moving to 4352 caused "two-side double" (split screen) where lines start on the right and wrap to the left, plus diagonal streaks on top from terminal buffer overflow.
+  - Major milestone achieved: XNU booted all the way into userspace and started **PID 1 (`launchd`)**!
+  - Panic root cause: `launchd` crashed in userspace (`handle_user_abort` → `exception_triage` → `postsig_locked` → `exit_with_reason` → `proc_exit` → panic).
+  - Adopted Fleur's clean console solution (`tools/clean-console.py`):
+    - Renamed ADT node `sweet-fbcon` → `sweet-fboff` inside the payload using `tools/clean-console.py`. `fbcon_probe()` never registers, so XNU text console never writes to the framebuffer, completely eliminating diagonal streaks, smears, and double-column shearing.
+    - Reverted `FB_STRIDE` to 4320 (`1080 * 4`) in `tools/mkadt.py`, `shim/build-rosemary.sh`, and patches `0010`/`0012`.
+    - Shim (`loader.c`) wipes the 31.3 MB framebuffer with `zero64(FB_BASE, 0x1DF0000UL)` right before jumping. The screen starts clean black, and GUI/SpringBoard rendering is left to `AppleCLCD` (patch 0046).
+    - Shim disassembly re-verified: all stride sites use `#0x10e0` (4320 bytes).
+    - Unpacked verification: `dtb` intact (155 KB), payload ADT contains `sweet-fboff`, `stride = 4320`.
+    - Boot image generated: `shim/out/shim-rosemary.img` (16,785,408 bytes).
+  - All kernel logs and panic backtraces continue to be saved in the 4 MiB persistent ring buffer in `userdata` (`SWEETLOG`), readable with `tools/sweet-log-pull.sh`.
+- [ ] Next action:
+  - Boot phone to fastboot mode (Hold Volume Down + Power).
+  - Flash `shim/out/shim-rosemary.img` to `boot_a` (`fastboot flash boot_a -S 4M shim/out/shim-rosemary.img`).
+  - Reboot device (`fastboot reboot`).
+  - Pull console ring via recovery/mtkclient to examine `launchd` crash reason and fix userspace startup.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)

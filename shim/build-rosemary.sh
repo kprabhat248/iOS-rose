@@ -18,13 +18,17 @@ fi
 
 DTB=${DTB:-$DEFAULT_DTB}
 if [ ! -f "$DTB" ]; then
-	DTB="$MUSI/Resources/DTBs/rosemary_stock_dtbtable.bin"
+	if [ -f "$ROOT_DIR/research/rosemary_stock_dtb.bin" ]; then
+		DTB="$ROOT_DIR/research/rosemary_stock_dtb.bin"
+	else
+		DTB="$MUSI/Resources/DTBs/rosemary_stock_dtbtable.bin"
+	fi
 fi
 
 MKBOOTIMG=${MKBOOTIMG:-$ROOT_DIR/tools/mkbootimg.py}
 
 
-CFLAGS="-O2 -ffreestanding -nostdlib -fno-pic -fno-jump-tables -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra -DFB_STRIDE=4352"
+CFLAGS="-O2 -ffreestanding -nostdlib -fno-pic -fno-jump-tables -mgeneral-regs-only -mstrict-align -fno-stack-protector -Wall -Wextra"
 
 if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
 	CC="aarch64-linux-gnu-gcc"
