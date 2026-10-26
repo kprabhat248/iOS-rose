@@ -252,8 +252,13 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Interpretation: launchd dereferenced a garbage pointer (far is unmapped; looks like packed instruction words). Combined with the earlier jetsam kills for compressor-thrashing (0xb) / FC-thrashing (6) / sustained-pressure (0xe=14) and `VM Swap Subsystem is ON`, the working theory is **swap/compressor I/O corruption or thrash on the UFS-backed root** — random per boot. Not yet proven.
   - No `-no_swap` boot-arg exists in xnu-8796; `vm_compressor` boot-arg exists (mode 2 = no compressor) if the compressor needs to be disabled next.
   - Rebooted into slot `a` again (the race sometimes passes; jetsam gate now protects pid 1 regardless).
+- [x] Step 5r: deterministic launchd crash root-caused to on-device root corruption; root reflashed (2026-10-26):
+  - Boot D's crash report (run `40364932290` kernel, log pull 5) matched boot C **byte-for-byte in the fault address** (`far 0x52800150510ce1ae`, same libignition point, same backtrace shape, different launchd load address per boot). Identical garbage across boots and kernels = launchd deterministically reading the same corrupted on-disk data — the random-behavior theory is dead; the iOS root in `userdata` contains a corrupted file (far value looks like file content bytes interpreted as a pointer).
+  - The corruption was introduced by earlier rw-root boots (HFS+journal writes over the sweet UFS write path; the pristine `rosemary-ios16-root.simg` predates it). The `cpus=6` big.LITTLE experiment image was built (`rosemary-a55only.payload`) but shelved — no longer needed under the corruption theory.
+  - Rebuild requested by user; `sudo tools/build_rosemary_root.sh` was not runnable (password required), but the existing pristine `simg` is byte-equivalent to a rebuild (root tweaks unchanged since Oct 18), so it was reflash directly: `fastboot -S 128M flash userdata rosemary-ios16-root.simg` — 89/89 chunks `OKAY`, 345 s (`-S 512M` fails: device `max-download-size` = 0x8000000 = 128 MiB). Rebooted into slot `a` (boot image = no-jetsam kernel `8cf51060`, full cmdline).
+  - IMPORTANT follow-up: the write path that corrupted the root is still in play (rw root + per-second SWEETLOG flushes + HFS journal). If the root corrupts again, suspect the concurrent SWEETLOG writer / UFS write reentrancy (patch 0030) and consider `sweetlog=0` or making the log flush take the same path as block I/O.
 - [ ] Next action:
-  - Watch the boot. If it panics at launchd again, pull the log (crash report is now always captured) and try `vm_compressor=2` in the cmdline (no compressor/swap) as the next experiment.
+  - Watch the boot on the clean root: expect launchd → ignition → daemons as in the good boot. Verify a second consecutive boot also stays healthy before trusting it.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
