@@ -229,9 +229,14 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Fix: repacked `xnu/out/rosemary-verbose.payload` with the full successful cmdline plus `-v` (user-requested verbose console) and `ufslun=2` (rosemary LUN), ADT `sweet-fbcon` enabled (stride 0x1100 verified), kernel `9706ab05` unchanged. sha256 `299863f722e8eefdb3831002e54ca7b54cd364da3f89c15c7bbb76efed527f7f`.
   - Boot image `shim/out/shim-rosemary.img` sha256 `9fc965cd56f2582936bdde205ecd36b56502405b748a4d6916884e3a00d53909`, flashed to `boot_a` (4/4 `OKAY`) after `fastboot set_active a`, `fastboot reboot` issued.
   - Note: fbcon on rosemary shears scrolled text (same artifact fleur's clean-console solution avoids); verbose mode is on at the user's explicit request. The clean-console variant (fbcon off) remains reproducible via `tools/clean-console.py`.
+- [x] Step 5o: `initproc failed to start` panic analyzed; crash-time log flush added (2026-10-26):
+  - With the full cmdline the boot got further but panicked again. Symbolication of the on-screen backtrace (kernel `9706ab05`, base `0xfffffe0007004000`): `handle_user_abort(+556) → exception_triage → ast_taken_user → bsd_ast → postsig_locked → exit_with_reason → proc_exit → panic`. `_proc_prepareexit` contains both `panic("initproc failed to start")` (when `initproc_spawned` is false) and `panic("initproc exited")` — so launchd was aborted again (same kill path as the CS_KILLED boot) before ever reaching main.
+  - The SWEETLOG ring was still stale (header `total 45167, flush #1` = the old 5i boot): the log thread flushes every 1 s and launchd died within ~1 s of the thread starting, so nothing reached `userdata`. The kill reason (`CRASH launchd[1] sig/code/pc/lr/far` lines from patch 0043, printed to console only) was lost.
+  - Fix: patch 0047 reworked into `sweet_log_flush_pass()` + exported `sweet_log_flush()`; the thread flushes immediately at start and every second; patch 0043's `sweet_crash_log()` now calls `sweet_log_flush()` synchronously right after printing the CRASH lines, so every future userspace kill reaches the ring. Committed `b5b267c`, CI run `40358983719`.
+  - Note: the on-screen panic banner was ambiguous between `initproc failed to start` (read on screen + by user) and the address of a cold panic stub (`proc_exit.cold.1` = `parent child linkage broken`, or an HFS journal stub) — the flushed log on the next panic will settle which nested panic actually fires.
 - [ ] Next action:
-  - Watch the boot: with the full cmdline, expect `-noprogress` (no pe_init panic), launchd past CS_KILLED, and SWEETLOG writing again. First boot to SpringBoard can take several minutes.
-  - After boot, pull `tools/sweet-log-pull.sh` to confirm the ring is live again and check `SWEET FB: AppleCLCD` line.
+  - When run `40358983719` completes: download `kernel.development.sweet`, repack `rosemary-verbose.payload` (same full cmdline, ADT `sweet-fbcon` stride 4352), rebuild shim, flash `boot_a`, reboot.
+  - On the next panic, pull `tools/sweet-log-pull.sh` — the ring will now contain the `CRASH launchd[1]` lines with the kill reason (sig/code/slide/pc/lr/far) and the full exec log; analyze before changing anything else.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
