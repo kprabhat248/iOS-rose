@@ -202,9 +202,16 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.559 s).
   - Switched active slot to `a` (`fastboot set_active a`).
   - Issued `fastboot reboot`.
+- [x] Step 5k: Visible text console image with green strip removed flashed (2026-10-26):
+  - User requested live on-screen boot text instead of dark screen.
+  - Re-enabled `sweet-fbcon` node in ADT (`width = 1080`, `height = 2400`, `stride = 4352`).
+  - Kernel: Clean kernel with `sweet_early_mark` and `sweet_early_putc` disabled (`ret`), Stage 0 pixel loop removed.
+  - Watchdog: TOPRGU WDT disabled before jump (`0x10007000 = 0x22000000`, `0x10007008 = 0x1971`).
+  - Boot image built: `shim/out/shim-rosemary.img` (sha256 `4d03b00db3cfb797823f13ed18b46ccfda8e7e58a365074c03971fa8358acb5d`).
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.522 s) and issued `fastboot reboot`.
 - [ ] Next action:
-  - Verify screen: panel starts 100% clean black without green strip, white band, diagonal smears, or early text.
-  - Monitor userspace startup to SpringBoard UI presentation.
+  - Check screen: live kernel boot text displayed on screen, sharp horizontal alignment (4352 stride), zero green strip, zero white band.
+  - Observe progress into userspace / SpringBoard.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
