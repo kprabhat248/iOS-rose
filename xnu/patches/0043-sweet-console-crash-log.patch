@@ -1,6 +1,6 @@
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
-@@ -820,6 +820,112 @@
+@@ -820,6 +820,127 @@
  	return exception_triage_thread(exception, code, codeCnt, thread);
  }
  
@@ -91,6 +91,21 @@
 +		uint64_t *r = saved_state64(ss)->x;
 +		printf("CRASH %s regs %llx %llx %llx %llx %llx %llx %llx %llx\n", name,
 +		    r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
++		printf("CRASH %s regs2 %llx %llx %llx %llx %llx %llx\n", name,
++		    r[8], r[9], r[10], r[11], r[12], r[13]);
++		printf("CRASH %s regs3 %llx %llx %llx %llx %llx %llx %llx %llx\n", name,
++		    r[14], r[15], r[16], r[17], r[18], r[19], r[20], r[21]);
++		if (r[19] != 0) {
++			unsigned char cfg[64];
++			if (!copyin((user_addr_t)(r[19] + 0x1a80), cfg, sizeof(cfg))) {
++				printf("CRASH %s cfg %016llx %016llx %016llx %016llx\n", name,
++				    *(uint64_t *)cfg, *(uint64_t *)(cfg + 8),
++				    *(uint64_t *)(cfg + 16), *(uint64_t *)(cfg + 24));
++				printf("CRASH %s cfg2 %016llx %016llx %016llx %016llx\n", name,
++				    *(uint64_t *)(cfg + 32), *(uint64_t *)(cfg + 40),
++				    *(uint64_t *)(cfg + 48), *(uint64_t *)(cfg + 56));
++			}
++		}
 +	}
 +
 +	char line[200];
