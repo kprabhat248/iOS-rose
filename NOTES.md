@@ -148,11 +148,15 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
     - Unpacked verification: `dtb` intact (155 KB), payload ADT contains `sweet-fboff`, `stride = 4320`.
     - Boot image generated: `shim/out/shim-rosemary.img` (16,785,408 bytes).
   - All kernel logs and panic backtraces continue to be saved in the 4 MiB persistent ring buffer in `userdata` (`SWEETLOG`), readable with `tools/sweet-log-pull.sh`.
+  - Flash completed (2026-10-26):
+    - Slot verification: `current-slot: a`, `slot-unbootable:a: no`, `slot-retry-count:a: 7`.
+    - Image sha256: `6a35f8427d207cd220d85dd8cf6ed042a64f4dde17bc060f335d417d89c61bac`.
+    - `fastboot flash boot_a -S 4M shim/out/shim-rosemary.img` -> 4/4 sparse chunks `OKAY` (0.520 s).
+    - `fastboot reboot` issued successfully.
 - [ ] Next action:
-  - Boot phone to fastboot mode (Hold Volume Down + Power).
-  - Flash `shim/out/shim-rosemary.img` to `boot_a` (`fastboot flash boot_a -S 4M shim/out/shim-rosemary.img`).
-  - Reboot device (`fastboot reboot`).
-  - Pull console ring via recovery/mtkclient to examine `launchd` crash reason and fix userspace startup.
+  - Observe screen: verify no more diagonal streaks, text smears, or split double columns appear on the panel.
+  - Pull persistent log from `userdata` via recovery/mtkclient using `tools/sweet-log-pull.sh` or mtkclient to read the clean console output.
+  - Investigate `launchd` crash reason (userspace exception) and resolve why PID 1 died.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
