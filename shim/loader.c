@@ -162,6 +162,10 @@ const char *loader_boot(uintptr_t dtb)
 	ba->Video.v_display = 1;
 	ba->Video.v_rowBytes = FB_STRIDE;
 	ba->Video.v_width = FB_W;
+	/* v_height must be non-zero: PE_init_iokit's boot-progress loop divides
+	 * the display size by two and never terminates (assert *delta >= 0,
+	 * pe_init.c:314) when the height reads as 0. */
+	ba->Video.v_height = FB_H;
 	/*
 	 * 32 bpp; scale field (bits 16-23) = 1 -> 2x console font, readable in
 	 * phone videos (67x75 characters instead of 135x150), matching fleur.

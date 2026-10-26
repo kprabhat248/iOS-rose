@@ -209,9 +209,16 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Watchdog: TOPRGU WDT disabled before jump (`0x10007000 = 0x22000000`, `0x10007008 = 0x1971`).
   - Boot image built: `shim/out/shim-rosemary.img` (sha256 `4d03b00db3cfb797823f13ed18b46ccfda8e7e58a365074c03971fa8358acb5d`).
   - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.522 s) and issued `fastboot reboot`.
+- [x] Step 5l: `pe_init.c:314` panic root-caused and fixed (2026-10-26):
+  - Screen photo showed early panic: `panic(cpu 0 caller 0xfffffe0007aa49f4): pe_init.c:314 Assertion failed: *delta >= 0` (Darwin 22.6.0, XNU-8796.141.3), with fbcon diagonal smear above it.
+  - Root cause (verified, not a guess): commit `39acbe9` accidentally deleted `ba->Video.v_height = FB_H;` from `shim/loader.c` while reworking the `v_depth` line. The zeroed boot_args then carried `v_height = 0`; in `PE_init_iokit()` the boot-progress fit loop uses `display_size = v_height` (`0/2 = 0`, condition always true), `*delta` goes negative, and `assert(*delta >= 0)` at `pe_init.c:314` panics before IOKit starts.
+  - Fix: restored `ba->Video.v_height = FB_H;` (2400) in `shim/loader.c` with a comment stating the constraint. Kernel/ADT/payload unchanged — no CI rebuild needed.
+  - Verification: standalone compile + disassembly shows `mov w10, #0x960; str x10, [x19, #0x48]` (v_height at boot_args offset 0x48, immediately after v_width at 0x40); the same pair confirmed inside the built `shim/out/Image` at offset `0x3dd8`.
+  - Rebuilt `shim/out/shim-rosemary.img`: sha256 `15d9c7eec5ad2e50d748f990c8e8520612ac43863283d44ebf95e02fb7a3349a`.
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.530 s) and issued `fastboot reboot`. Slot `a` was healthy pre-flash (`slot-unbootable:a: no`, retry-count 5).
 - [ ] Next action:
-  - Check screen: live kernel boot text displayed on screen, sharp horizontal alignment (4352 stride), zero green strip, zero white band.
-  - Observe progress into userspace / SpringBoard.
+  - Check screen: boot should now pass `PE_init_iokit` into IOKit and userspace (this panic was the only blocker found so far).
+  - Watch for fbcon diagonal smear returning (Step 5f/5h history): if the visible console smears again, the stride writers need re-audit; kernel logs remain pullable via `tools/sweet-log-pull.sh`.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
