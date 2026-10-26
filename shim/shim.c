@@ -583,9 +583,6 @@ void shim_main(uint64_t dtb, uint64_t boot_el)
 	 */
 	if (loader_payload_present(dtb)) {
 		con_clear(BLUE);
-		con_str("SHIM", "probing UFS partitions...");
-		test_ufs();
-		delay_ms(5000);
 		con_str("SHIM", "booting SWEETXNU payload");
 		const char *err = loader_boot(dtb);
 		con_str("XNU", err);

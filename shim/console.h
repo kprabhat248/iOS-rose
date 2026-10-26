@@ -4,7 +4,12 @@
 #define FB_BASE		0x7c010000UL	/* fleur: mblock-18-framebuffer */
 #define FB_W		1080
 #define FB_H		2400
-#define FB_STRIDE	(1080 * 4)	/* a8r8g8b8 */
+/* a8r8g8b8. This header is shared with fleur, whose shim was verified with
+ * 4320, so the scan pitch comes from the build: build-rosemary.sh passes
+ * -DFB_STRIDE=4352 (LK reports 0x1100 for rosemary's panel). */
+#ifndef FB_STRIDE
+#define FB_STRIDE	(1080 * 4)
+#endif
 
 #define RED	0xffff0000U
 #define BLUE	0xff0000a0U

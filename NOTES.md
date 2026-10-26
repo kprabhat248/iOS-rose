@@ -103,15 +103,19 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
 - [x] Step 5: XNU kernel boot & display geometry:
   - Kernel build CI dispatched & downloaded: GitHub Actions Run ID `40226134257` on ref `rosemary` (commit `7da9f81`, sha256 `866f819d5565828ea6ce379ad65bd60e514e0ed96edd2269b7278202c1a2faa5`).
   - Stride resolution: Reverted stride to exact 4,320 bytes (`1080 * 4 = 4320`). Changing stride to 4,352 bytes (1088 px) caused display shearing into two split columns ("two side double") because Rosemary's AMOLED panel scanline pitch is strictly 1080 pixels (4,320 bytes) without 64-byte padding.
-  - No XNU kernel rebuild strictly required for stride: `sweet-fbcon` (serial/panic console) and `AppleCLCD` obtain their stride dynamically at runtime from the Apple Device Tree (`rosemary.adt`) and `boot_args.Video.v_rowBytes`.
+  - MediaTek LK does not support temporary `fastboot boot` (`usb_read failed`), which previously fell back to the older 4,352-stride image on `boot_a`.
   - Storage fix: Set `ufslun=2` in cmdline. MediaTek UFS stores the GPT and `userdata` on LUN 2 (LUN 0 and 1 are 4 MB boot LUNs without a GPT, which caused panic `IOFindBSDRoot: SWEET UFS root ufsroot0 unavailable: 6`).
-  - Shim rebuilt: `shim/out/shim-rosemary.img` (16.8 MB) with latest kernel, 4,320 stride, 31.3 MB full framebuffer zeroing, and UFS probe.
-- [x] Step 6: iOS 16.7.16 Root Image (25 GB):
-  - Extracted OS, SystemOS, and AppOS DMGs from `iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw` into `/Volumes/files/rosemary/rootfs/`.
-  - Created native macOS root builder `tools/build_rosemary_root.sh` and sparse image converter `tools/img2simg.py` configured for 25 GB target on external SSD.
-  - Successfully built 25 GB case-sensitive journaled HFS+ image with cryptexes, dyld cache, and sweet tweaks (`rosemary-ios16-root.simg`, 10.85 GiB sparse).
-  - Flashed `userdata` partition via fastboot in 2,794 chunks (373s, OKAY).
-- [ ] Next action: Flash `shim/out/shim-rosemary.img` to `boot_a` (or test with `fastboot boot shim/out/shim-rosemary.img`), verify single-column clean console, secondary core bring-up, and UFS root mount on LUN 2.
+  - Bootloop cause: after an initial crash, MTK LK marked `slot-retry-count:a: 0`, `slot-unbootable:a: yes`, and switched to `current-slot: b`.
+  - Fix applied: erased `misc` partition to clear LK bootctrl state, rebooted bootloader, verified slot reset (`current-slot: a`, `slot-unbootable:a: no`, `retry-count: 7`), re-disabled AVB on `vbmeta_a/system/vendor` (`--disable-verity --disable-verification`), and flashed `shim/out/shim-rosemary.img` (4,320 stride) in 4M sparse chunks (`-S 4M`). Rebooted device.
+- [x] Step 5b: Framebuffer stride root cause (boot-log photo, 2026-10-26):
+  - Observation: on the physical screen the top ~23 text rows of the XNU boot log render clean (`zone_init: ...`), everything below degenerates into tilted, overlapping diagonal streaks.
+  - Measurement: the lower region drifts ~8 px per screen row going down = 32 bytes/row, exactly `4352 - 4320`. The drift is *leftwards*, which means the console writes 4320 while the panel scans 4352.
+  - Panel pitch 4352 (0x1100) is corroborated three ways: LK's own milestone-1 report (`stride 0x1100`), `FLEUR_FB_STRIDE = 1088 * 4`, and the measured 32-byte delta.
+  - GUESS (not yet re-tested): the earlier "two side double" at 4352 came from a half-applied change — `EARLY_STRIDE` in patches 0010/0012 is compiled into the kernel, so a rebuilt ADT with a stale kernel leaves `sweet_early` and `fbcon` writing different pitches. This time all writers move together and the kernel is rebuilt too.
+  - Fix applied: `tools/mkadt.py` `ROSEMARY_FB_STRIDE = 1088 * 4`; patches `0010` (`EARLY_STRIDE` + the two `start.s` asm constants) and `0012` (`EARLY_STRIDE`) → 4352; `shim/build-rosemary.sh` passes `-DFB_STRIDE=4352`. `shim/console.h` is shared with fleur, so `FB_STRIDE` became `#ifndef`-guarded keeping the 4320 default fleur was verified with.
+  - `xnu/out/rosemary.adt` rebuilt: `sweet-fbcon` `stride = 0x1100`.
+  - Observation: `fleur` (Redmi Note 11S) and `rosemary` (Redmi Note 10S) are both AMOLED; the differences are 90 Hz vs 60 Hz and the physical size/PPI, which is why the panel scan pitch must be taken from LK rather than copied between profiles.
+- [ ] Next action: rebuild the XNU kernel in CI (required — `sweet_early` stride is compiled in), then repack `xnu/out/rosemary.payload` and `shim/out/shim-rosemary.img`, flash `boot_a`, and confirm a single clean console column plus UFS root mount on LUN 2 (`userdata`).
 
 
 
