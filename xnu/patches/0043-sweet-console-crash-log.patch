@@ -71,10 +71,9 @@
 +		vm_map_lock_read(map);
 +		if (vm_map_lookup_entry(map, (vm_map_offset_t)get_saved_state_pc(ss), &entry) &&
 +		    entry != vm_map_to_entry(map)) {
-+			printf("CRASH %s pc map 0x%llx-0x%llx prot %d/%d tag %d off 0x%llx\n",
++			printf("CRASH %s pc map 0x%llx-0x%llx prot %d/%d tag %d\n",
 +			    name, (uint64_t)entry->vme_start, (uint64_t)entry->vme_end,
-+			    entry->protection, entry->max_protection, (int)VME_ALIAS(entry),
-+			    (uint64_t)entry->offset);
++			    entry->protection, entry->max_protection, (int)VME_ALIAS(entry));
 +		} else {
 +			printf("CRASH %s pc map: none\n", name);
 +		}
