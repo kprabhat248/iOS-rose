@@ -185,8 +185,8 @@ const char *loader_boot(uintptr_t dtb)
 	ufs_clocks();
 
 	/* Disable MTK toprgu watchdog before jumping: WDT_MODE=0x22000000, WDT_RESTART=0x1971 */
-	wr32(0x10007000UL, 0x22000000U);
-	wr32(0x10007008UL, 0x1971U);
+	*(volatile uint32_t *)0x10007000UL = 0x22000000U;
+	*(volatile uint32_t *)0x10007008UL = 0x1971U;
 
 	/* Clear the entire 31.3 MB framebuffer carveout so XNU starts with a clean black canvas. */
 	zero64(FB_BASE, 0x1DF0000UL);

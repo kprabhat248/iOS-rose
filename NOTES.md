@@ -188,11 +188,23 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
     - Reinforced TOPRGU WDT disable before jumping in `shim/loader.c` (`0x10007000 = 0x22000000`, `0x10007008 = 0x1971`).
     - Fixed macOS BSD `stat` compatibility in `tools/sweet-log-pull.sh`.
     - Committed (`52550b0` and `9e9af4b`), pushed to `origin/rosemary`, and dispatched GitHub Actions run `40316740723`.
+- [x] Step 5j: Zero-strip clean kernel image built, flashed and rebooted (2026-10-26):
+  - CI Build: Run `40316740723` on commit `9e9af4b` succeeded in 6m49s.
+  - Downloaded `kernel.development.sweet`: sha256 `9706ab05b35ba5d1c9ed35b3b8fc4af61325409b9a2e3b4d17d8eeef0903addd`.
+  - Disassembly verified:
+    - `<_start_first_cpu>`: Stage 0 pixel loop completely removed.
+    - `<_sweet_early_mark>`: single `ret` instruction. Zero green pixels or text lines written.
+    - `<_sweet_early_putc>`: single `ret` instruction.
+  - Stride verified: 4,352 bytes (`1088 * 4`) across ADT, shim, and kernel.
+  - TOPRGU WDT disabled before jumping: `*(volatile uint32_t *)0x10007000UL = 0x22000000U`, `0x10007008UL = 0x1971U`.
+  - Framebuffer wiped: 31.3 MB cleared to black with `zero64(FB_BASE, 0x1DF0000UL)`.
+  - Image built: `shim/out/shim-rosemary.img` (sha256 `49cf76ca5e2abec3b66d6c3b8f03b4e790dbe370db3cb6c27f41b4b637530202`).
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.559 s).
+  - Switched active slot to `a` (`fastboot set_active a`).
+  - Issued `fastboot reboot`.
 - [ ] Next action:
-  - Download clean kernel artifact from CI run `40316740723`.
-  - Repack payload with `mkpayload.py` and `clean-console.py`.
-  - Build `shim/out/shim-rosemary.img`.
-  - Flash `boot_a` and reboot. Panel will start pure black with zero green strip.
+  - Verify screen: panel starts 100% clean black without green strip, white band, diagonal smears, or early text.
+  - Monitor userspace startup to SpringBoard UI presentation.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
