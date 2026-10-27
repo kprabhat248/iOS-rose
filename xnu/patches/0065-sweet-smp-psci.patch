@@ -388,12 +388,51 @@
  	.align 2
  	.globl EXT(resume_idle_cpu)
  LEXT(resume_idle_cpu)
-@@ -743,6 +793,12 @@
+@@ -743,6 +793,51 @@
  	ic		iallu
  #endif
  
 +#if defined(SWEET)
-+	/* Complete local TLB/I-cache invalidation before enabling the MMU. */
++	/* Invalidate data caches by set/way before enabling the MMU. */
++	mrs		x0, clidr_el1
++	and		w3, w0, #0x07000000
++	lsr		w3, w3, #23
++	cbz		w3, 3f
++	mov		w10, #0
++1:
++	add		w2, w10, w10, lsr #1
++	lsr		w1, w0, w2
++	and		w1, w1, #7
++	cmp		w1, #2
++	b.lt	2f
++	msr		csselr_el1, x10
++	isb
++	mrs		x1, ccsidr_el1
++	and		w2, w1, #7
++	add		w2, w2, #4
++	ubfx	w4, w1, #3, #10
++	clz		w5, w4
++	ubfx	w7, w1, #13, #15
++4:
++	mov		w9, w4
++5:
++	lsl		x6, x9, x5
++	orr		x11, x10, x6
++	lsl		x6, x7, x2
++	orr		x11, x11, x6
++	dc		isw, x11
++	subs	w9, w9, #1
++	b.ge	5b
++	subs	w7, w7, #1
++	b.ge	4b
++2:
++	add		w10, w10, #2
++	cmp		w10, w3
++	b.lt	1b
++3:
++	mov		x10, #0
++	msr		csselr_el1, x10
++	/* Complete local TLB/D-cache/I-cache invalidation before enabling the MMU. */
 +	dsb		sy
 +	isb
 +#endif

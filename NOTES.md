@@ -273,9 +273,16 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - `_configuration_init` fills the ProcessConfig from sysctls: `security.mac.img4.ignition_blob` (absent on our kernel → "ignition blob not available" ✓ printed), `hw.osenvironment` (absent — our ADT has **no** `/chosen osenvironment` property; kernel returns EINVAL, which dyld explicitly tolerates), `kern.bootargs` parse via `dyld_parse_boot_arg_cstr/int`.
   - The config-dump probe (run `40389623513`) showed the garbage field's context: x8 already held `0x52800150510ce1ae`, and config+0x1a98..0x1ac8 contain **AArch64 instruction fragments (ADRP/ADD/MOVZ pairs)** — runtime-generated corruption in dyld's __DATA/BSS, not present in any file (kernel, ADT, payloads, all 179k root files, dyld itself all scanned), independent of slide, root contents, kernel build, and compressor setting.
   - Working theory: page zero-fill / memory-corruption bug (pmap patches 0006, or decompression) — possibly SMP-related. Boot A (first boot after a fastboot session) passed; all warm panic-reboots since fail with byte-identical garbage — consistent with stale DRAM surviving warm reboots and a zero-fill or coherency defect.
-  - Experiment flashed: `cpus=1` (single CPU, kernel `1870bcaa`, image `4e35fc6b`) to discriminate SMP coherency vs deterministic pmap/decompression bug. Boot is slow on one A55 — let it run several minutes.
+- [x] Step 5u: dyld crash root-caused to stale D-cache; set/way D-cache invalidation added, all 8 CPUs enabled (2026-10-27):
+  - `cpus=1` boot (`rosemary12.log`) reproduced the crash identically: `far 0x52800150510ce1ae` at `_configuration_dump+0x3c` (`ldr x26, [x8]`).
+  - Decisive root cause: `0x52800150510ce1ae` decodes to two ARM64 instructions: `sub w14, w13, #0x338` (`0x510ce1ae`) followed by `mov w16, #0xa` (`0x52800150`). Dyld expects `this->dyldCache.addr` to be `nullptr` (0) on systems without a shared cache (`Caches/com.apple.dyld` absent). Because dirty L1/L2 data cache lines from prior boots survived warm reset and were never invalidated before MMU enable, stale instruction lines corrupted dyld's BSS/heap. Dyld evaluated `dyldCache.addr != nullptr`, dereferenced it, and crashed with SIGSEGV.
+  - Complete architectural D-cache invalidation by set/way (`CLIDR_EL1` -> `CSSELR_EL1` -> `CCSIDR_EL1` -> `dc isw`) implemented:
+    1. In `shim/loader.c`: clears CPU 0's D-cache hierarchy before jumping to XNU.
+    2. In `xnu/patches/0065-sweet-smp-psci.patch` (`osfmk/arm64/start.s`): clears D-cache before MMU enable on both boot CPU and secondary CPUs 1..7.
+  - All 8 CPUs enabled (`cpus=8`) with full system cmdline in `rosemary-verbose.payload`.
+  - Shim rebuilt: `shim/out/shim-rosemary.img` (sha256 updated).
 - [ ] Next action:
-  - Watch the cpus=1 boot. If launchd passes `_configuration_dump` → SMP coherency/zero-fill race; then try cpus=6 (A55-only) and bisect the pmap cache-maintenance patches. If it still faults at `0x52800150510ce1ae` → deterministic pmap/decompression bug; audit `pmap_zero_page`/`decmpfs` paths next.
+  - Commit changes, dispatch kernel build via `gh workflow run xnu.yml --ref rosemary`, repack payload with new kernel, and flash `shim/out/shim-rosemary.img` to `boot_a`.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)

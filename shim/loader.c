@@ -66,6 +66,54 @@ static void zero64(uintptr_t dst, uint64_t n)
 		d[i] = 0;
 }
 
+/* Invalidate entire data cache hierarchy by set/way before jumping to XNU */
+static void invalidate_dcache(void)
+{
+	__asm__ volatile(
+		"mrs	x0, clidr_el1\n"
+		"and	w3, w0, #0x07000000\n"
+		"lsr	w3, w3, #23\n"
+		"cbz	w3, 3f\n"
+		"mov	w10, #0\n"
+		"1:\n"
+		"add	w2, w10, w10, lsr #1\n"
+		"lsr	w1, w0, w2\n"
+		"and	w1, w1, #7\n"
+		"cmp	w1, #2\n"
+		"b.lt	2f\n"
+		"msr	csselr_el1, x10\n"
+		"isb\n"
+		"mrs	x1, ccsidr_el1\n"
+		"and	w2, w1, #7\n"
+		"add	w2, w2, #4\n"
+		"ubfx	w4, w1, #3, #10\n"
+		"clz	w5, w4\n"
+		"ubfx	w7, w1, #13, #15\n"
+		"4:\n"
+		"mov	w9, w4\n"
+		"5:\n"
+		"lsl	x6, x9, x5\n"
+		"orr	x11, x10, x6\n"
+		"lsl	x6, x7, x2\n"
+		"orr	x11, x11, x6\n"
+		"dc	isw, x11\n"
+		"subs	w9, w9, #1\n"
+		"b.ge	5b\n"
+		"subs	w7, w7, #1\n"
+		"b.ge	4b\n"
+		"2:\n"
+		"add	w10, w10, #2\n"
+		"cmp	w10, w3\n"
+		"b.lt	1b\n"
+		"3:\n"
+		"mov	x10, #0\n"
+		"msr	csselr_el1, x10\n"
+		"dsb	sy\n"
+		"isb\n"
+		::: "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x9", "x10", "x11", "memory"
+	);
+}
+
 static int magic_ok(const char *m)
 {
 	static const char want[] = "SWEETXNU";
@@ -195,7 +243,8 @@ const char *loader_boot(uintptr_t dtb)
 	/* Clear the entire 31.3 MB framebuffer carveout so XNU starts with a clean black canvas. */
 	zero64(FB_BASE, 0x1DF0000UL);
 
-	/* Everything was written with the MMU and caches off; drop any stale I-cache lines too. */
+	/* Drop any stale D-cache and I-cache lines before XNU enables the MMU. */
+	invalidate_dcache();
 	__asm__ volatile("dsb sy; ic iallu; dsb sy; isb" ::: "memory");
 	((xnu_entry_t)entry_pa)(ba_pa);
 	return "xnu returned";
