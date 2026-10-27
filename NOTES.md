@@ -279,10 +279,14 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Complete architectural D-cache invalidation by set/way (`CLIDR_EL1` -> `CSSELR_EL1` -> `CCSIDR_EL1` -> `dc isw`) implemented:
     1. In `shim/loader.c`: clears CPU 0's D-cache hierarchy before jumping to XNU.
     2. In `xnu/patches/0065-sweet-smp-psci.patch` (`osfmk/arm64/start.s`): clears D-cache before MMU enable on both boot CPU and secondary CPUs 1..7.
-  - All 8 CPUs enabled (`cpus=8`) with full system cmdline in `rosemary-verbose.payload`.
-  - Shim rebuilt: `shim/out/shim-rosemary.img` (sha256 updated).
+  - Committed (`d8033f7`), pushed to `origin/rosemary`, and built via GitHub Actions Run ID `40482351375` (completed in 7m40s).
+  - Downloaded `xnu/out/new_dcache_kernel/kernel.development.sweet` (sha256 `24e5dcd9e18272f742a1da79af93fedb33608f6c01e05d81eb608c7d03e4e4f6`).
+  - Disassembly of `_start_first_cpu` verified: full `clidr_el1` -> `csselr_el1` -> `ccsidr_el1` -> `dc isw` loop present at `fffffe000748d3c0`-`fffffe000748d440`, immediately preceding `msr SCTLR_EL1, x0`.
+  - All 8 CPUs enabled (`cpus=8`) with full cmdline in `rosemary.payload` (`debug=0xc serial=3 cpus=8 keepsyms=1 -v -noprogress rd=ufsroot0 ufslun=2 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 -wdt_no_pmu sweetfb_native=1 sweetfb_hz=30 usbmap=1 usbg=1`).
+  - Boot image built: `shim/out/shim-rosemary.img` (sha256 `dd45ef9a8e2b73d7417884b7cd9860c72c0e63cb58364da5088f0a28ee3c0d6b`). Unpacked and verified matching Android boot v2 header.
 - [ ] Next action:
-  - Commit changes, dispatch kernel build via `gh workflow run xnu.yml --ref rosemary`, repack payload with new kernel, and flash `shim/out/shim-rosemary.img` to `boot_a`.
+  - Flash `shim/out/shim-rosemary.img` to `boot_a` with `fastboot flash boot_a -S 4M shim/out/shim-rosemary.img`.
+  - Reboot device (`fastboot reboot`), verify all 8 cores initialize, and observe dyld passing `_configuration_dump` cleanly.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
