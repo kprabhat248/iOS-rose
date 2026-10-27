@@ -284,9 +284,9 @@ Port Apple's XNU kernel (iOS 16 generation) and the iOS 16.7.16 userland stack t
   - Disassembly of `_start_first_cpu` verified: full `clidr_el1` -> `csselr_el1` -> `ccsidr_el1` -> `dc isw` loop present at `fffffe000748d3c0`-`fffffe000748d440`, immediately preceding `msr SCTLR_EL1, x0`.
   - All 8 CPUs enabled (`cpus=8`) with full cmdline in `rosemary.payload` (`debug=0xc serial=3 cpus=8 keepsyms=1 -v -noprogress rd=ufsroot0 ufslun=2 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 -wdt_no_pmu sweetfb_native=1 sweetfb_hz=30 usbmap=1 usbg=1`).
   - Boot image built: `shim/out/shim-rosemary.img` (sha256 `dd45ef9a8e2b73d7417884b7cd9860c72c0e63cb58364da5088f0a28ee3c0d6b`). Unpacked and verified matching Android boot v2 header.
+  - Flashed to `boot_a` (4/4 sparse chunks `OKAY`, 0.732s) after `fastboot set_active a`, and issued `fastboot reboot` (2026-10-27 15:26 local).
 - [ ] Next action:
-  - Flash `shim/out/shim-rosemary.img` to `boot_a` with `fastboot flash boot_a -S 4M shim/out/shim-rosemary.img`.
-  - Reboot device (`fastboot reboot`), verify all 8 cores initialize, and observe dyld passing `_configuration_dump` cleanly.
+  - Verify all 8 cores initialize on screen / log, and observe dyld passing `_configuration_dump` cleanly into userspace daemon launches. Pull log via `tools/sweet-log-pull.sh` if needed.
 
 ## Flash / Recovery Target
 - **Target Partition**: `boot_a` (device uses slot `a` for flashing shim / boot images)
